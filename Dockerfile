@@ -1,4 +1,4 @@
-FROM rocker/shiny:4.1
+FROM rocker/shiny:4.1 AS builder
 
 LABEL maintainer="Sen ZHAO <t.cytotoxic@gmail.com>"
 
@@ -48,16 +48,18 @@ RUN installGithub.r "senzhaocode/FuSViz"
 RUN wget https://cran.r-project.org/src/contrib/Archive/shinyWidgets/shinyWidgets_0.6.2.tar.gz && R CMD INSTALL shinyWidgets_0.6.2.tar.gz
 RUN rm -rf /tmp/bcftools* && rm -rf /tmp/htslib-* && rm -rf /tmp/samtools-* && rm -rf /tmp/file* && rm -rf /tmp/shinyWidgets*
 
+# Now build an image without all the dev cruft
+FROM rocker/shiny:4.1 AS result
+
+ENV LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib/R/lib/
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/R/lib/
 RUN echo "local(options(shiny.port = 3838, shiny.host = '0.0.0.0'))" >> /usr/local/lib/R/etc/Rprofile.site
 
 # Set Volume
 RUN mkdir /data && chmod 777 /data
 VOLUME /data
 
-# Final clean
-RUN apt-get clean autoclean
-RUN rm -rf /var/tmp/*
-RUN rm -rf /tmp/downloaded_packages
+COPY --from=builder /usr/local/lib/R/lib /usr/local/lib/R/lib
 
 # Set non-root user
 RUN addgroup --system senzhao && adduser --system --ingroup senzhao senzhao
@@ -73,4 +75,3 @@ USER senzhao
 EXPOSE 3838
 
 CMD ["R", "-e", "shiny::runApp('/home/senzhao')"]
-
